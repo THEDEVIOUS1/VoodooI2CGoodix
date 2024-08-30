@@ -116,8 +116,8 @@ bool VoodooI2CGoodixTouchDriver::init(OSDictionary *properties) {
 
     numTouches = 0;
     awake = true;
+    interrupt_source = NULL;
     ready_for_input = false;
-    read_in_progress = false;
     return true;
 }
 
@@ -228,11 +228,9 @@ void VoodooI2CGoodixTouchDriver::interrupt_occurred(OSObject* owner, IOInterrupt
         return;
     }
     interrupt_source->disable();
-    read_in_progress = true;
     thread_t new_thread;
     kern_return_t ret = kernel_thread_start(OSMemberFunctionCast(thread_continue_t, this, &VoodooI2CGoodixTouchDriver::handle_input_threaded), this, &new_thread);
     if (ret != KERN_SUCCESS) {
-        read_in_progress = false;
         interrupt_source->enable();
         IOLog("%s::Thread error while attemping to get input report: %d\n", getName(), ret);
     }
@@ -243,13 +241,11 @@ void VoodooI2CGoodixTouchDriver::interrupt_occurred(OSObject* owner, IOInterrupt
 
 void VoodooI2CGoodixTouchDriver::handle_input_threaded() {
     if (!ready_for_input || !command_gate) {
-        read_in_progress = false;
         return;
     }
     command_gate->attemptAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooI2CGoodixTouchDriver::goodix_process_events));
     goodix_end_cmd();
     interrupt_source->enable();
-    read_in_progress = false;
 }
 
 IOReturn VoodooI2CGoodixTouchDriver::goodix_end_cmd() {
@@ -391,17 +387,28 @@ void VoodooI2CGoodixTouchDriver::stop(IOService* provider) {
 IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOService* whatDevice) {
     if (whichState == 0) {
         if (awake) {
-            awake = false;
-            while (read_in_progress) {
-                IOLog("%s::Waiting for read to finish before sleeping...\n", getName());
-                IOSleep(10);
+             if (interrupt_simulator) {
+                interrupt_simulator->disable();
+            } else if (interrupt_source) {
+                interrupt_source->disable();
             }
-            IOLog("%s::Going to sleep\n", getName());
-        }
+
+            setHIDPowerState(kVoodooI2CStateOff);
+            
+            IOLog("%s::%s Going to sleep\n", getName(), name);
+            awake = false;
     }
     else {
         if (!awake) {
             awake = true;
+
+            if (interrupt_simulator) {
+                interrupt_simulator->setTimeoutMS(200);
+                interrupt_simulator->enable();
+            } else if (interrupt_source) {
+                interrupt_source->enable();
+            }
+            
             IOLog("%s::Waking up\n", getName());
         }
     }
