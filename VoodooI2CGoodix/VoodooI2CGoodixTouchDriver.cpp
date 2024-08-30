@@ -171,10 +171,13 @@ bool VoodooI2CGoodixTouchDriver::start(IOService* provider) {
 
     // set interrupts AFTER device is initialised
     interrupt_source = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &VoodooI2CGoodixTouchDriver::interrupt_occurred), api, 0);
-    if (!interrupt_source) {
+    if (interrupt_source) {
+        work_loop->addEventSource(interrupt_source);
+    } else {
         IOLog("%s::Could not get interrupt event source\n", getName());
         goto start_exit;
     }
+    startInterrupt();
 
     if (!init_device()) {
         IOLog("%s::Failed to init device\n", getName());
@@ -612,11 +615,9 @@ void VoodooI2CHIDDevice::startInterrupt() {
     }
 
     if (interrupt_simulator) {
-        work_loop->addEventSource(interrupt_simulator);
         interrupt_simulator->setTimeoutMS(200);
         interrupt_simulator->enable();
     } else if (interrupt_source) {
-        work_loop->addEventSource(interrupt_source);
         interrupt_source->enable();
     }
     is_interrupt_started = true;
@@ -629,10 +630,8 @@ void VoodooI2CHIDDevice::stopInterrupt() {
 
     if (interrupt_simulator) {
         interrupt_simulator->disable();
-        work_loop->removeEventSource(interrupt_simulator);
     } else if (interrupt_source) {
         interrupt_source->disable();
-        work_loop->removeEventSource(interrupt_source);
     }
     is_interrupt_started = false;
 }
