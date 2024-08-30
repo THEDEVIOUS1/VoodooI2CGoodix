@@ -57,6 +57,7 @@ protected:
 private:
     bool awake;
     bool ready_for_input;
+    bool is_interrupt_started = false;
 
     struct goodix_ts_data *ts;
 
@@ -113,6 +114,11 @@ private:
     /* Handles input in a threaded manner, then
      * calls parse_goodix_report via the command gate for synchronisation
      */
+
+    void startInterrupt();
+
+    void stopInterrupt();
+    
     void handle_input_threaded();
 
     /* Process incoming events. Called when the IRQ is triggered.
