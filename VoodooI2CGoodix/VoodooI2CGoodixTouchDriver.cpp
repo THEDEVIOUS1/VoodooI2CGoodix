@@ -387,11 +387,8 @@ void VoodooI2CGoodixTouchDriver::stop(IOService* provider) {
 IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOService* whatDevice) {
     if (whichState == 0) {
         if (awake) {
-             if (interrupt_simulator) {
-                interrupt_simulator->disable();
-            } else if (interrupt_source) {
-                interrupt_source->disable();
-            }
+            
+            stopInterrupt();
 
             setHIDPowerState(kVoodooI2CStateOff);
             
@@ -402,12 +399,7 @@ IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOS
         if (!awake) {
             awake = true;
 
-            if (interrupt_simulator) {
-                interrupt_simulator->setTimeoutMS(200);
-                interrupt_simulator->enable();
-            } else if (interrupt_source) {
-                interrupt_source->enable();
-            }
+            startInterrupt();
             
             IOLog("%s::Waking up\n", getName());
         }
@@ -613,4 +605,34 @@ bool VoodooI2CGoodixTouchDriver::init_device() {
     }
 
     return true;
+}
+void VoodooI2CHIDDevice::startInterrupt() {
+    if (is_interrupt_started) {
+        return;
+    }
+
+    if (interrupt_simulator) {
+        work_loop->addEventSource(interrupt_simulator);
+        interrupt_simulator->setTimeoutMS(200);
+        interrupt_simulator->enable();
+    } else if (interrupt_source) {
+        work_loop->addEventSource(interrupt_source);
+        interrupt_source->enable();
+    }
+    is_interrupt_started = true;
+}
+
+void VoodooI2CHIDDevice::stopInterrupt() {
+    if (!is_interrupt_started) {
+        return;
+    }
+
+    if (interrupt_simulator) {
+        interrupt_simulator->disable();
+        work_loop->removeEventSource(interrupt_simulator);
+    } else if (interrupt_source) {
+        interrupt_source->disable();
+        work_loop->removeEventSource(interrupt_source);
+    }
+    is_interrupt_started = false;
 }
