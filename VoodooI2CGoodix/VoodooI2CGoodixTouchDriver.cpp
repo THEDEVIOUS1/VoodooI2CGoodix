@@ -390,10 +390,10 @@ void VoodooI2CGoodixTouchDriver::stop(IOService* provider) {
 IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOService* whatDevice) {
     if (whichState == 0) {
         if (awake) {
-            
-            stopInterrupt();
 
             setHIDPowerState(kVoodooI2CStateOff);
+
+            stopInterrupt();
             
             IOLog("%s::%s Going to sleep\n", getName(), name);
             awake = false;
@@ -402,8 +402,8 @@ IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOS
         if (!awake) {
             awake = true;
 
-            startInterrupt();
-            
+            startInterrupt(); 
+             setHIDPowerState(kVoodooI2CStateOn);
             IOLog("%s::Waking up\n", getName());
         }
     }
