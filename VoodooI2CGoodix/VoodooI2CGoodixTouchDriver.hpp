@@ -83,6 +83,10 @@ private:
      */
     void release_resources();
 
+    void startInterrupt();
+
+    void stopInterrupt();
+
     IOReturn goodix_read_reg(UInt16 reg, UInt8* values, size_t len);
     IOReturn goodix_write_reg(UInt16 reg, UInt8 value);
 
