@@ -56,8 +56,8 @@ protected:
 
 private:
     bool awake;
-    bool read_in_progress;
     bool ready_for_input;
+    bool is_interrupt_started = false;
 
     struct goodix_ts_data *ts;
 
