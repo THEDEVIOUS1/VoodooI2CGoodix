@@ -165,25 +165,25 @@ bool VoodooI2CGoodixTouchDriver::start(IOService* provider) {
     command_gate = IOCommandGate::commandGate(this);
     if (!command_gate || (workLoop->addEventSource(command_gate) != kIOReturnSuccess)) {
         IOLog("%s::Could not open command gate\n", getName());
-        goto start_exit;
+        goto exit;
     }
     acpi_device->retain();
     api->retain();
     if (!api->open(this)) {
         IOLog("%s::Could not open API\n", getName());
-        goto start_exit;
+        goto exit;
     }
 
     // set interrupts AFTER device is initialised
     interrupt_source = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &VoodooI2CGoodixTouchDriver::interrupt_occurred), api, 0);
     if (!interrupt_source) {
         IOLog("%s::Could not get interrupt event source\n", getName());
-        goto start_exit;
+        goto exit;
     }
 
     if (!init_device()) {
         IOLog("%s::Failed to init device\n", getName());
-        goto start_exit;
+        goto exit;
     }
     else {
         IOLog("%s::Device initialized\n", getName());
