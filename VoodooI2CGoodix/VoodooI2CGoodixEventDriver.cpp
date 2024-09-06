@@ -447,19 +447,19 @@ IOReturn VoodooI2CGoodixEventDriver::publishMultitouchInterface() {
     multitouch_interface = OSTypeAlloc(VoodooI2CMultitouchInterface);
     if (!multitouch_interface) {
         IOLog("%s::No memory to allocate VoodooI2CMultitouchInterface instance\n", getName());
-        goto multitouch_exit;
+        goto exit;
     }
     if (!multitouch_interface->init(NULL)) {
         IOLog("%s::Failed to init multitouch interface\n", getName());
-        goto multitouch_exit;
+        goto exit;
     }
     if (!multitouch_interface->attach(this)) {
         IOLog("%s::Failed to attach multitouch interface\n", getName());
-        goto multitouch_exit;
+        goto exit;
     }
     if (!multitouch_interface->start(this)) {
         IOLog("%s::Failed to start multitouch interface\n", getName());
-        goto multitouch_exit;
+        goto exit;
     }
     // Assume we are a touchscreen for now
     multitouch_interface->setProperty(kIOHIDDisplayIntegratedKey, true);
