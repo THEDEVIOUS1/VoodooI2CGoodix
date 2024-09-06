@@ -460,9 +460,9 @@ IOReturn VoodooI2CGoodixTouchDriver::setPowerState(unsigned long whichState, IOS
 
 void VoodooI2CGoodixTouchDriver::release_resources() {
     if (command_gate) {
+        command_gate->disable();
         workLoop->removeEventSource(command_gate);
-        command_gate->release();
-        command_gate = NULL;
+        OSSafeReleaseNULL(command_gate);
     }
 
     stopInterrupt();
@@ -470,23 +470,19 @@ void VoodooI2CGoodixTouchDriver::release_resources() {
     if (interrupt_source) {
         interrupt_source->disable();
         workLoop->removeEventSource(interrupt_source);
-        interrupt_source->release();
-        interrupt_source = NULL;
+        OSSafeReleaseNULL(interrupt_source);
     }
     if (workLoop) {
-        workLoop->release();
-        workLoop = NULL;
+        OSSafeReleaseNULL(work_loop);
     }
     if (acpi_device) {
-        acpi_device->release();
-        acpi_device = NULL;
+        OSSafeReleaseNULL(acpi_device);
     }
     if (api) {
         if (api->isOpen(this)) {
             api->close(this);
         }
-        api->release();
-        api = NULL;
+        OSSafeReleaseNULL(api);
     }
     if (event_driver) {
         event_driver->stop(this);
