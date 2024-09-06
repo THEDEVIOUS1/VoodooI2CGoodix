@@ -380,66 +380,96 @@ bool VoodooI2CGoodixEventDriver::handleStart(IOService* provider) {
     if(!super::handleStart(provider)) {
         return false;
     }
+    
+    hid_interface = OSDynamicCast(IOHIDInterface, provider);
 
-    this->work_loop = getWorkLoop();
-    if (!this->work_loop) {
-        IOLog("%s::Unable to get workloop\n", getName());
-        stop(provider);
+    if (!hid_interface)
         return false;
+
+    OSString* transport = hid_interface->getTransport();
+    if (!transport)
+        return false;
+  
+    if (strncmp(transport->getCStringNoCopy(), kIOHIDTransportUSBValue, sizeof(kIOHIDTransportUSBValue)) != 0)
+
+        hid_interface->setProperty("VoodooI2CServices Supported", kOSBooleanTrue);
+
+    hid_device = OSDynamicCast(IOHIDDevice, hid_interface->getParentEntry(gIOServicePlane));
+    
+    if (!hid_device)
+        return false;
+    
+    name = getProductName();
+
+    OSObject* object = copyProperty(kIOHIDAbsoluteAxisBoundsRemovalPercentage, gIOServicePlane);
+
+    OSNumber* number = OSDynamicCast(OSNumber, object);
+
+    if (number) {
+        absolute_axis_removal_percentage = number->unsigned32BitValue();
     }
 
-    work_loop->retain();
+    OSSafeReleaseNULL(object);
+    
+    if (should_have_interface)
+        publishMultitouchInterface();
+    
+    digitiser.fingers = OSArray::withCapacity(1);
+    
+    if (!digitiser.fingers)
+        return false;
+    
+    digitiser.styluses = OSArray::withCapacity(1);
+    
+    if (!digitiser.styluses)
+        return false;
 
-    publishMultitouchInterface();
+    digitiser.transducers = OSArray::withCapacity(1);
 
-    multitouch_interface->registerService();
+    if (!digitiser.transducers)
+        return false;
 
-    activeFramebuffer = getFramebuffer();
-
-    liftTimerSource = IOTimerEventSource::timerEventSource(this, OSMemberFunctionCast(IOTimerEventSource::Action, this, &VoodooI2CGoodixEventDriver::fingerLift));
-    if (!liftTimerSource || work_loop->addEventSource(liftTimerSource) != kIOReturnSuccess) {
-        IOLog("%s::Could not add lift timer source to work loop\n", getName());
+    if (parseElements(kHIDUsage_Dig_Any) != kIOReturnSuccess) {
+        IOLog("%s::%s Could not parse multitouch elements\n", getName(), name);
         return false;
     }
-
-    clickTimerSource = IOTimerEventSource::timerEventSource(this, OSMemberFunctionCast(IOTimerEventSource::Action, this, &VoodooI2CGoodixEventDriver::checkForClick));
-    if (!clickTimerSource || work_loop->addEventSource(clickTimerSource) != kIOReturnSuccess) {
-        IOLog("%s::Could not add click timer source to work loop\n", getName());
+    
+    if (!hid_interface->open(this, 0, OSMemberFunctionCast(IOHIDInterface::InterruptReportAction, this, &VoodooI2CMultitouchHIDEventDriver::handleInterruptReport), NULL))
         return false;
-    }
+
+    setDigitizerProperties();
+
+    PMinit();
+    hid_interface->joinPMtree(this);
+    registerPowerDriver(this, VoodooI2CIOPMPowerStates, kVoodooI2CIOPMNumberPowerStates);
 
     return true;
 }
 
 void VoodooI2CGoodixEventDriver::handleStop(IOService* provider) {
-    unpublishMultitouchInterface();
-
-    if (transducers) {
-        for (int i = 0; i < transducers->getCount(); i++) {
-            OSObject* object = transducers->getObject(i);
-            if (object) {
-                object->release();
-            }
-        }
-        OSSafeReleaseNULL(transducers);
+    unregisterHIDPointerNotifications();
+    OSSafeReleaseNULL(attached_hid_pointer_devices);
+    
+    if (multitouch_interface) {
+        multitouch_interface->stop(this);
+        multitouch_interface->detach(this);
+        OSSafeReleaseNULL(multitouch_interface);
     }
-
-    if (liftTimerSource) {
-        liftTimerSource->cancelTimeout();
-        work_loop->removeEventSource(liftTimerSource);
-        OSSafeReleaseNULL(liftTimerSource);
-    }
-
-    if (clickTimerSource) {
-        clickTimerSource->cancelTimeout();
-        work_loop->removeEventSource(clickTimerSource);
-        OSSafeReleaseNULL(clickTimerSource);
+    
+    if (command_gate) {
+        work_loop->removeEventSource(command_gate);
+        OSSafeReleaseNULL(command_gate);
     }
 
     OSSafeReleaseNULL(work_loop);
 
-//    OSSafeReleaseNULL(activeFramebuffer); // Todo: do we need to do this?
+    
+    OSSafeReleaseNULL(digitiser.transducers);
+    OSSafeReleaseNULL(digitiser.wrappers);
+    OSSafeReleaseNULL(digitiser.styluses);
+    OSSafeReleaseNULL(digitiser.fingers);
 
+    PMstop();
     super::handleStop(provider);
 }
 
